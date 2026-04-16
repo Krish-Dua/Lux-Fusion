@@ -5,7 +5,7 @@ import App from './App.jsx'
 import { Provider, defaultTheme } from '@adobe/react-spectrum';
 
 createRoot(document.getElementById('root')).render(
-   <Provider theme={defaultTheme} colorScheme="light">
+   <Provider theme={defaultTheme} colorScheme="dark" scale="large">
   <StrictMode>
     <App />
   </StrictMode>,
