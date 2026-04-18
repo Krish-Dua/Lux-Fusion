@@ -17,6 +17,12 @@ function App() {
   const [saturation, setSaturation] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
   const isdisabled = !file;
+  const MIN_ZOOM = 50;
+  const MAX_ZOOM = 400;
+
+  const clampZoom = (value) => {
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+  };
 
   const getClampedPanOffset = (nextOffset, canvas, img, currentZoom) => {
     if (!canvas || !img) return nextOffset;
@@ -125,7 +131,6 @@ function App() {
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = "high";
 
-      // Draw from canvas center so zoom and panning share one transform system.
       context.setTransform(
         scale,
         0,
@@ -197,6 +202,15 @@ function App() {
     setIsDragging(true);
   };
 
+  const handleCanvasWheel = (event) => {
+    if (!file) return;
+
+    event.preventDefault();
+
+    const zoomStep = event.deltaY < 0 ? 10 : -10;
+    setZoom((currentZoom) => clampZoom(currentZoom + zoomStep));
+  };
+
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-white">
       <input
@@ -232,6 +246,7 @@ function App() {
             <canvas
               ref={canvasRef}
               onMouseDown={handleCanvasMouseDown}
+              onWheel={handleCanvasWheel}
               className={`h-[80%] w-[80%] ${
                 isDragging ? "cursor-grabbing" : "cursor-grab"
               }`}
@@ -290,8 +305,8 @@ function App() {
 
             <Slider
               label="Zoom"
-              minValue={50}
-              maxValue={400}
+              minValue={MIN_ZOOM}
+              maxValue={MAX_ZOOM}
               defaultValue={100}
               isDisabled={isdisabled}
               isFilled
