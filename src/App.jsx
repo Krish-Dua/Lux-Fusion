@@ -5,12 +5,45 @@ import React, { useEffect, useRef, useState } from "react";
 function App() {
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
+  const imageRef = useRef(null);
+  const drawImageRef = useRef(() => {});
+  const panOffsetRef = useRef({ x: 0, y: 0 });
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const panStartRef = useRef({ x: 0, y: 0 });
   const [file, setFile] = useState(null);
   const [zoom, setZoom] = useState(100);
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
   const [saturation, setSaturation] = useState(100);
+  const [isDragging, setIsDragging] = useState(false);
   const isdisabled = !file;
+
+  const getClampedPanOffset = (nextOffset, canvas, img, currentZoom) => {
+    if (!canvas || !img) return nextOffset;
+
+    const fitScale = Math.min(
+      canvas.width / img.width,
+      canvas.height / img.height,
+    );
+    const scaledWidth = img.width * fitScale * (currentZoom / 100);
+    const scaledHeight = img.height * fitScale * (currentZoom / 100);
+    const maxPanX = Math.max(0, (scaledWidth - canvas.width) / 2);
+    const maxPanY = Math.max(0, (scaledHeight - canvas.height) / 2);
+
+    return {
+      x: Math.min(maxPanX, Math.max(-maxPanX, nextOffset.x)),
+      y: Math.min(maxPanY, Math.max(-maxPanY, nextOffset.y)),
+    };
+  };
+
+  const resetAdjustments = () => {
+    panOffsetRef.current = { x: 0, y: 0 };
+    setZoom(100);
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    drawImageRef.current();
+  };
 
   const handleFileSubmit = () => {
     const selectedFile = inputRef.current?.files?.[0];
@@ -24,6 +57,8 @@ function App() {
       return;
     }
 
+    panOffsetRef.current = { x: 0, y: 0 };
+    setIsDragging(false);
     setZoom(100);
     setBrightness(100);
     setContrast(100);
@@ -32,19 +67,57 @@ function App() {
   };
 
   useEffect(() => {
-    if (!file || !canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const context = canvas.getContext("2d");
-
-    if (!context) return;
+    if (!file) {
+      imageRef.current = null;
+      return;
+    }
 
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
 
+    img.onload = () => {
+      imageRef.current = img;
+      panOffsetRef.current = { x: 0, y: 0 };
+      drawImageRef.current();
+    };
+
+    img.src = objectUrl;
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [file]);
+
+  useEffect(() => {
     const drawImage = () => {
+      const canvas = canvasRef.current;
+      const img = imageRef.current;
+
+      if (!canvas || !img) return;
+
+      const context = canvas.getContext("2d");
+
+      if (!context) return;
+
       canvas.width = canvas.clientWidth;
       canvas.height = canvas.clientHeight;
+
+      const fitScale = Math.min(
+        canvas.width / img.width,
+        canvas.height / img.height,
+      );
+      const baseWidth = img.width * fitScale;
+      const baseHeight = img.height * fitScale;
+      const scale = zoom / 100;
+      const clampedPanOffset = getClampedPanOffset(
+        panOffsetRef.current,
+        canvas,
+        img,
+        zoom,
+      );
+      const { x: panX, y: panY } = clampedPanOffset;
+
+      panOffsetRef.current = clampedPanOffset;
 
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
@@ -52,35 +125,77 @@ function App() {
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = "high";
 
-      const fitScale = Math.min(
-        canvas.width / img.width,
-        canvas.height / img.height,
+      // Draw from canvas center so zoom and panning share one transform system.
+      context.setTransform(
+        scale,
+        0,
+        0,
+        scale,
+        canvas.width / 2 + panX,
+        canvas.height / 2 + panY,
       );
-      const zoomScale = zoom / 100;
-      const drawWidth = img.width * fitScale * zoomScale;
-      const drawHeight = img.height * fitScale * zoomScale;
-      const x = (canvas.width - drawWidth) / 2;
-      const y = (canvas.height - drawHeight) / 2;
-
-      context.drawImage(img, x, y, drawWidth, drawHeight);
+      context.drawImage(
+        img,
+        -baseWidth / 2,
+        -baseHeight / 2,
+        baseWidth,
+        baseHeight,
+      );
     };
 
-    const handleResize = () => {
-      drawImage();
-    };
+    drawImageRef.current = drawImage;
+    drawImage();
 
-    img.onload = () => {
-      drawImage();
-      window.addEventListener("resize", handleResize);
-    };
-
-    img.src = objectUrl;
+    window.addEventListener("resize", drawImage);
 
     return () => {
-      window.removeEventListener("resize", handleResize);
-      URL.revokeObjectURL(objectUrl);
+      window.removeEventListener("resize", drawImage);
     };
   }, [file, zoom, brightness, contrast, saturation]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (event) => {
+      const canvas = canvasRef.current;
+      const img = imageRef.current;
+      const deltaX = event.clientX - dragStartRef.current.x;
+      const deltaY = event.clientY - dragStartRef.current.y;
+
+      panOffsetRef.current = getClampedPanOffset(
+        {
+          x: panStartRef.current.x + deltaX,
+          y: panStartRef.current.y + deltaY,
+        },
+        canvas,
+        img,
+        zoom,
+      );
+
+      drawImageRef.current();
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, zoom]);
+
+  const handleCanvasMouseDown = (event) => {
+    if (!file) return;
+
+    event.preventDefault();
+    dragStartRef.current = { x: event.clientX, y: event.clientY };
+    panStartRef.current = { ...panOffsetRef.current };
+    setIsDragging(true);
+  };
 
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-white">
@@ -114,7 +229,13 @@ function App() {
       <div className="flex flex-1 min-h-0">
         <div className="flex flex-1 items-center justify-center bg-slate-900">
           {file ? (
-            <canvas ref={canvasRef} className="h-[80%] w-[80%]"></canvas>
+            <canvas
+              ref={canvasRef}
+              onMouseDown={handleCanvasMouseDown}
+              className={`h-[80%] w-[80%] ${
+                isDragging ? "cursor-grabbing" : "cursor-grab"
+              }`}
+            ></canvas>
           ) : (
             <p className="text-slate-300 text-extrabold text-xl">
               Import an Image to view it here{" "}
@@ -127,8 +248,6 @@ function App() {
             <h2 className="text-center text-2xl font-semibold text-amber-50">
               Adjustments
             </h2>
-
-           
 
             <Slider
               label="Brightness"
@@ -168,10 +287,11 @@ function App() {
               width="80%"
               getValueLabel={(value) => `${value}%`}
             />
-             <Slider
+
+            <Slider
               label="Zoom"
               minValue={50}
-              maxValue={300}
+              maxValue={400}
               defaultValue={100}
               isDisabled={isdisabled}
               isFilled
@@ -182,16 +302,7 @@ function App() {
             />
           </div>
 
-          <Button
-            onPress={() => {
-              setZoom(100);
-              setBrightness(100);
-              setContrast(100);
-              setSaturation(100);
-            }}
-          >
-            Reset Changes
-          </Button>
+          <Button onPress={resetAdjustments}>Reset Changes</Button>
         </div>
       </div>
     </div>
