@@ -8,6 +8,7 @@ import {
 } from "@adobe/react-spectrum";
 import "./App.css";
 import React, { useEffect, useRef, useState } from "react";
+import { handleHDRMerge } from "./opencv";
 
 function App() {
   const inputRef = useRef(null);
@@ -27,6 +28,7 @@ function App() {
   const [saturation, setSaturation] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
   const [isHdrMode, setIsHdrMode] = useState(false);
+  const [isMergingHdr, setIsMergingHdr] = useState(false);
   const [hdrFiles, setHdrFiles] = useState([]);
   const [hdrPreviewUrls, setHdrPreviewUrls] = useState([]);
 
@@ -133,6 +135,28 @@ resetAdjustments();
       setIsHdrMode(nextFiles.length > 0);
       return nextFiles;
     });
+  };
+
+  const handleHdrMerge = async () => {
+    if (hdrFiles.length < MIN_HDR_FILES || isMergingHdr) return;
+
+    try {
+      setIsMergingHdr(true);
+const mergedFile = await handleHDRMerge(hdrFiles);
+      panOffsetRef.current = { x: 0, y: 0 };
+      setIsDragging(false);
+      setZoom(100);
+      setBrightness(100);
+      setContrast(100);
+      setSaturation(100);
+      setFile(mergedFile);
+      setHdrFiles([]);
+      setIsHdrMode(false);
+    } catch (error) {
+      console.error("HDR merge failed:", error);
+    } finally {
+      setIsMergingHdr(false);
+    }
   };
 
   useEffect(() => {
@@ -438,12 +462,12 @@ resetAdjustments();
 
               <div className="flex justify-around">
                  <Button
-                  onPress={() => {}}
+                  onPress={handleHdrMerge}
                   variant="cta"
                   width="40%"
-                  isDisabled={hdrFiles.length < 2}
+                  isDisabled={hdrFiles.length < 2 || isMergingHdr}
                 >
-                  Merge
+                  {isMergingHdr ? "Merging..." : "Merge"}
                 </Button>
                 <Button
                   onPress={() =>{ 
