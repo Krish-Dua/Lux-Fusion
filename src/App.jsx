@@ -4,21 +4,30 @@ import React, { useEffect, useRef, useState } from "react";
 
 function App() {
   const inputRef = useRef(null);
+  const hdrInputRef = useRef(null);
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const drawImageRef = useRef(() => {});
   const panOffsetRef = useRef({ x: 0, y: 0 });
   const dragStartRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef({ x: 0, y: 0 });
+
   const [file, setFile] = useState(null);
   const [zoom, setZoom] = useState(100);
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
   const [saturation, setSaturation] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHdrMode, setIsHdrMode] = useState(false);
+  const [hdrFiles, setHdrFiles] = useState([]);
+  const [hdrPreviewUrls, setHdrPreviewUrls] = useState([]);
+
   const isdisabled = !file;
   const MIN_ZOOM = 50;
   const MAX_ZOOM = 400;
+  const MAX_HDR_FILES = 10;
+  const MIN_HDR_FILES = 2;
+  const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
   const clampZoom = (value) => {
     return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
@@ -56,9 +65,7 @@ function App() {
 
     if (!selectedFile) return;
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-
-    if (!allowedTypes.includes(selectedFile.type)) {
+    if (!ALLOWED_IMAGE_TYPES.includes(selectedFile.type)) {
       console.log("Unsupported file type:", selectedFile.type);
       return;
     }
@@ -69,7 +76,55 @@ function App() {
     setBrightness(100);
     setContrast(100);
     setSaturation(100);
+    setHdrFiles([]);
+    setIsHdrMode(false);
     setFile(selectedFile);
+     if (inputRef.current) {
+      console.log(inputRef.current.value);
+    inputRef.current.value = "";
+  }
+  };
+
+  const handleHdrFileSubmit = () => {
+    const selectedFiles = Array.from(hdrInputRef.current?.files ?? []);
+
+    if (!selectedFiles.length) return;
+
+    const hasUnsupportedFile = selectedFiles.some(
+      (selectedFile) => !ALLOWED_IMAGE_TYPES.includes(selectedFile.type),
+    );
+
+    if (hasUnsupportedFile) {
+      console.log("One or more HDR files have an unsupported file type.");
+      return;
+    }
+
+    setHdrFiles((currentFiles) => {
+      if (currentFiles.length + selectedFiles.length > MAX_HDR_FILES) {
+        console.log(`You can upload a maximum of ${MAX_HDR_FILES} HDR images.`);
+        return currentFiles;
+      }
+
+      const nextFiles = [...currentFiles, ...selectedFiles];
+      setIsHdrMode(nextFiles.length > 0);
+      return nextFiles;
+    });
+setFile(null); 
+resetAdjustments();
+    if (hdrInputRef.current) {
+      hdrInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveHdrFile = (indexToRemove) => {
+    setHdrFiles((currentFiles) => {
+      const nextFiles = currentFiles.filter(
+        (_, index) => index !== indexToRemove,
+      );
+
+      setIsHdrMode(nextFiles.length > 0);
+      return nextFiles;
+    });
   };
 
   useEffect(() => {
@@ -93,6 +148,18 @@ function App() {
       URL.revokeObjectURL(objectUrl);
     };
   }, [file]);
+
+  useEffect(() => {
+    const nextPreviewUrls = hdrFiles.map((hdrFile) =>
+      URL.createObjectURL(hdrFile),
+    );
+
+    setHdrPreviewUrls(nextPreviewUrls);
+
+    return () => {
+      nextPreviewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+    };
+  }, [hdrFiles]);
 
   useEffect(() => {
     const drawImage = () => {
@@ -212,11 +279,20 @@ function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-slate-950 text-white">
+    <div className="flex h-screen flex-col bg-slate-950 text-white">
       <input
         ref={inputRef}
         type="file"
         onChange={handleFileSubmit}
+        accept="image/jpeg, image/png, image/webp"
+        className="hidden"
+      />
+
+      <input
+        ref={hdrInputRef}
+        type="file"
+        onChange={handleHdrFileSubmit}
+        multiple
         accept="image/jpeg, image/png, image/webp"
         className="hidden"
       />
@@ -229,18 +305,25 @@ function App() {
         <div className="top-controls flex gap-4 border-b border-amber-200/10 bg-slate-950 p-4 shadow-lg backdrop-blur-xl">
           <Button
             onPress={() => {
-              inputRef.current.click();
+              inputRef.current?.click();
             }}
             variant="cta"
           >
             Import
           </Button>
           <Button>Export</Button>
-          <Button variant="accent">HDR Merge</Button>
+          <Button
+            onPress={() => {
+              hdrInputRef.current?.click();
+            }}
+            variant="accent"
+          >
+            HDR Merge
+          </Button>
         </div>
       </div>
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1">
         <div className="flex flex-1 items-center justify-center bg-slate-900">
           {file ? (
             <canvas
@@ -252,73 +335,142 @@ function App() {
               }`}
             ></canvas>
           ) : (
-            <p className="text-slate-300 text-extrabold text-xl">
-              Import an Image to view it here{" "}
+            <p className="text-xl text-slate-300 text-extrabold">
+              {isHdrMode
+                ? `Click on Merge to create an HDR image and view the result here`
+                : "Import an image to start editing"}
             </p>
           )}
         </div>
 
-        <div className="right-panel flex w-[23%] min-w-75 flex-col items-center justify-between space-y-6 border-l border-amber-200/10 bg-slate-950 p-4 text-slate-50 shadow-2xl">
-          <div className="flex w-full flex-col items-center gap-6">
-            <h2 className="text-center text-2xl font-semibold text-amber-50">
-              Adjustments
-            </h2>
+        {isHdrMode ? (
+          <div className="right-panel flex w-[23%] min-w-75 flex-col border-l border-amber-200/10 bg-slate-950 p-4 text-slate-50 shadow-2xl">
+            <div className="flex w-full flex-1 flex-col gap-4 overflow-hidden">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-2xl text-center font-semibold text-amber-50">
+                  HDR Merge
+                </h2>
+                <p className="text-sm text-slate-400">
+                  {hdrFiles.length}/{MAX_HDR_FILES}
+                </p>
+              </div>
 
-            <Slider
-              label="Brightness"
-              minValue={0}
-              maxValue={200}
-              defaultValue={100}
-              isDisabled={isdisabled}
-              isFilled
-              value={brightness}
-              onChange={setBrightness}
-              width="80%"
-              getValueLabel={(value) => `${value}%`}
-            />
+              <div className="flex justify-around">
+                 <Button
+                  onPress={() => {}}
+                  variant="cta"
+                  width="40%"
+                  isDisabled={hdrFiles.length < 2}
+                >
+                  Merge
+                </Button>
+                <Button
+                  onPress={() =>{ 
+                    setIsHdrMode(false);
+                    setHdrFiles([])}}
+                  variant="negative"
+                  width="40%"
+                  isDisabled={hdrFiles.length === 0}
+                >
+                  Clear All
+                </Button> 
+              </div>
 
-            <Slider
-              label="Contrast"
-              minValue={0}
-              maxValue={200}
-              defaultValue={100}
-              isDisabled={isdisabled}
-              value={contrast}
-              onChange={setContrast}
-              isFilled
-              width="80%"
-              getValueLabel={(value) => `${value}%`}
-            />
-
-            <Slider
-              label="Saturation"
-              minValue={0}
-              maxValue={200}
-              defaultValue={100}
-              isDisabled={isdisabled}
-              value={saturation}
-              onChange={setSaturation}
-              isFilled
-              width="80%"
-              getValueLabel={(value) => `${value}%`}
-            />
-
-            <Slider
-              label="Zoom"
-              minValue={MIN_ZOOM}
-              maxValue={MAX_ZOOM}
-              defaultValue={100}
-              isDisabled={isdisabled}
-              isFilled
-              value={zoom}
-              onChange={setZoom}
-              width="80%"
-              getValueLabel={(value) => `${value}%`}
-            />
+              <div className="grid grid-cols-2 gap-3 overflow-y-auto pr-1">
+                {hdrPreviewUrls.map((previewUrl, index) => (
+                  <div
+                    key={`${hdrFiles[index]?.name ?? "hdr-file"}-${index}`}
+                    className="group relative  rounded-xl border border-slate-700/80 bg-slate-900/90"
+                  >
+                    <img
+                      src={previewUrl}
+                      alt={`HDR preview ${index + 1}`}
+                      className="aspect-square h-full w-full object-cover transition duration-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveHdrFile(index)}
+                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/80 text-sm font-semibold text-white opacity-0 transition hover:bg-rose-600 group-hover:opacity-100"
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+        ) : (
+          <div className="right-panel flex w-[23%] min-w-75 flex-col items-center justify-between space-y-6 border-l border-amber-200/10 bg-slate-950 p-4 text-slate-50 shadow-2xl">
+            <div className="flex w-full flex-col items-center gap-6">
+              <h2 className="text-center text-2xl font-semibold text-amber-50">
+                Adjustments
+              </h2>
 
-          <Button onPress={resetAdjustments}>Reset Changes</Button>
-        </div>
+              <Slider
+                label="Brightness"
+                minValue={0}
+                maxValue={200}
+                defaultValue={100}
+                isDisabled={isdisabled}
+                isFilled
+                value={brightness}
+                onChange={setBrightness}
+                width="80%"
+                getValueLabel={(value) => `${value}%`}
+              />
+
+              <Slider
+                label="Contrast"
+                minValue={0}
+                maxValue={200}
+                defaultValue={100}
+                isDisabled={isdisabled}
+                value={contrast}
+                onChange={setContrast}
+                isFilled
+                width="80%"
+                getValueLabel={(value) => `${value}%`}
+              />
+
+              <Slider
+                label="Saturation"
+                minValue={0}
+                maxValue={200}
+                defaultValue={100}
+                isDisabled={isdisabled}
+                value={saturation}
+                onChange={setSaturation}
+                isFilled
+                width="80%"
+                getValueLabel={(value) => `${value}%`}
+              />
+
+              <Slider
+                label="Zoom"
+                minValue={MIN_ZOOM}
+                maxValue={MAX_ZOOM}
+                defaultValue={100}
+                isDisabled={isdisabled}
+                isFilled
+                value={zoom}
+                onChange={setZoom}
+                width="80%"
+                getValueLabel={(value) => `${value}%`}
+              />
+
+              <div className="mt-2 flex w-full flex-col gap-2">
+                <p className="text-md text-slate-300">
+                  * Use mouse scroll wheel to zoom in/out
+                </p>
+                <p className="text-md text-slate-300">
+                  * Click and hold over image to pan around
+                </p>
+              </div>
+            </div>
+
+            <Button onPress={resetAdjustments}>Reset Changes</Button>
+          </div>
+        )}
       </div>
     </div>
   );
