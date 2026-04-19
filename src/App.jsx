@@ -1,4 +1,11 @@
-import { Button, Slider } from "@adobe/react-spectrum";
+import {
+  ActionButton,
+  Button,
+  Item,
+  Menu,
+  MenuTrigger,
+  Slider,
+} from "@adobe/react-spectrum";
 import "./App.css";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -8,6 +15,7 @@ function App() {
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const drawImageRef = useRef(() => {});
+  const exportBoundsRef = useRef(null);
   const panOffsetRef = useRef({ x: 0, y: 0 });
   const dragStartRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef({ x: 0, y: 0 });
@@ -189,8 +197,18 @@ resetAdjustments();
         zoom,
       );
       const { x: panX, y: panY } = clampedPanOffset;
+      const drawnWidth = baseWidth * scale;
+      const drawnHeight = baseHeight * scale;
+      const drawnX = canvas.width / 2 + panX - drawnWidth / 2;
+      const drawnY = canvas.height / 2 + panY - drawnHeight / 2;
 
       panOffsetRef.current = clampedPanOffset;
+      exportBoundsRef.current = {
+        x: drawnX,
+        y: drawnY,
+        width: drawnWidth,
+        height: drawnHeight,
+      };
 
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
@@ -278,6 +296,63 @@ resetAdjustments();
     setZoom((currentZoom) => clampZoom(currentZoom + zoomStep));
   };
 
+  const handleExport = (format) => {
+    const canvas = canvasRef.current;
+    const bounds = exportBoundsRef.current;
+
+    if (!canvas || !bounds) return;
+
+    const cropX = Math.max(0, Math.floor(bounds.x));
+    const cropY = Math.max(0, Math.floor(bounds.y));
+    const cropWidth = Math.min(
+      canvas.width - cropX,
+      Math.ceil(bounds.width + Math.min(0, bounds.x)),
+    );
+    const cropHeight = Math.min(
+      canvas.height - cropY,
+      Math.ceil(bounds.height + Math.min(0, bounds.y)),
+    );
+
+    if (cropWidth <= 0 || cropHeight <= 0) return;
+
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = cropWidth;
+    tempCanvas.height = cropHeight;
+
+    const tempContext = tempCanvas.getContext("2d");
+
+    if (!tempContext) return;
+
+    tempContext.drawImage(
+      canvas,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      cropWidth,
+      cropHeight,
+    );
+
+    const mimeType = format === "jpeg" ? "image/jpeg" : "image/png";
+
+    tempCanvas.toBlob((blob) => {
+      if (!blob) return;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lux-fusion.${format}`;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+    }, mimeType);
+  };
+
   return (
     <div className="flex h-screen flex-col bg-slate-950 text-white">
       <input
@@ -311,7 +386,13 @@ resetAdjustments();
           >
             Import
           </Button>
-          <Button>Export</Button>
+          <MenuTrigger>
+            <ActionButton isDisabled={!file}>Export</ActionButton>
+            <Menu onAction={handleExport}>
+              <Item key="png">As PNG</Item>
+              <Item key="jpeg">As JPEG</Item>
+            </Menu>
+          </MenuTrigger>
           <Button
             onPress={() => {
               hdrInputRef.current?.click();
@@ -464,6 +545,9 @@ resetAdjustments();
                 </p>
                 <p className="text-md text-slate-300">
                   * Click and hold over image to pan around
+                </p>
+                 <p className="text-md text-slate-300">
+                  * Image will be exported as it is shown in the preview
                 </p>
               </div>
             </div>
