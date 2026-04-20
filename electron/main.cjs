@@ -6,9 +6,12 @@ function createWindow() {
     width: 1000,
     height: 800,
   });
-
-  win.loadURL("http://localhost:5173");
-  // win.loadFile(path.join(__dirname, "../dist/index.html"));
+  win.webContents.openDevTools();
+  
+  win.maximize();
+  win.removeMenu();
+  // win.loadURL("http://localhost:5173");
+  win.loadFile(path.join(__dirname, "../dist/index.html"));
 }
 
 app.whenReady().then(createWindow);

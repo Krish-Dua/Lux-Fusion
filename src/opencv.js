@@ -43,14 +43,7 @@ export const handleHDRMerge = async (files) => {
 
   if (files.length < 2) return alert("Select at least 2 images!");
 
-  try {
-     if (!window.cv) {
-    alert("OpenCV is still loading, please wait a moment...");
-    return;
-  }
-  const cv = window.cv; 
-  
-  
+  try {  
     const srcImages = await processFilesToMatVector(files);
 
 
