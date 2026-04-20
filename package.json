@@ -1,8 +1,10 @@
 {
-  "name": "image-proceesing",
+  "name": "lux-fusion",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "description": "An image processing tool with edit options like filters, cropping, resizing, and hdr merge functionality",
+  "author":"krish dua",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
@@ -13,14 +15,15 @@
     "preview": "vite preview"
   },
   "build": {
-    "appId": "com.test.app",
-    "productName": "TestApp",
+    "appId": "com.LuxFusion.app",
+    "productName": "Lux Fusion",
     "files": [
       "dist/**/*",
       "electron/**/*"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "dist/icon.ico"
     },
     "nsis": {
       "oneClick": true,
