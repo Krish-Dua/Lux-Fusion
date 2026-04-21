@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "An image processing tool with edit options like filters, cropping, resizing, and hdr merge functionality",
+  "description": "An image processing tool with edit options like filters, zooming, panning, and hdr merge functionality",
   "author":"krish dua",
   "main": "electron/main.cjs",
   "scripts": {

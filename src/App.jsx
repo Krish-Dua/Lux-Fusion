@@ -35,9 +35,13 @@ function App() {
   const isdisabled = !file;
   const MIN_ZOOM = 50;
   const MAX_ZOOM = 400;
-  const MAX_HDR_FILES = 10;
+  const MAX_HDR_FILES = 20;
   const MIN_HDR_FILES = 2;
   const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+  const showError = (message) => {
+    window.alert(message);
+  };
 
   const clampZoom = (value) => {
     return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
@@ -76,7 +80,7 @@ function App() {
     if (!selectedFile) return;
 
     if (!ALLOWED_IMAGE_TYPES.includes(selectedFile.type)) {
-      console.log("Unsupported file type:", selectedFile.type);
+      showError("Unsupported file type. Please import a JPEG, PNG, or WebP image.");
       return;
     }
 
@@ -89,10 +93,9 @@ function App() {
     setHdrFiles([]);
     setIsHdrMode(false);
     setFile(selectedFile);
-     if (inputRef.current) {
-      console.log(inputRef.current.value);
-    inputRef.current.value = "";
-  }
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   };
 
   const handleHdrFileSubmit = () => {
@@ -105,13 +108,13 @@ function App() {
     );
 
     if (hasUnsupportedFile) {
-      console.log("One or more HDR files have an unsupported file type.");
+      showError("One or more HDR files are unsupported. Please use JPEG, PNG, or WebP images.");
       return;
     }
 
     setHdrFiles((currentFiles) => {
       if (currentFiles.length + selectedFiles.length > MAX_HDR_FILES) {
-        console.log(`You can upload a maximum of ${MAX_HDR_FILES} HDR images.`);
+        showError(`You can upload a maximum of ${MAX_HDR_FILES} images to merge.`);
         return currentFiles;
       }
 
@@ -119,8 +122,8 @@ function App() {
       setIsHdrMode(nextFiles.length > 0);
       return nextFiles;
     });
-setFile(null); 
-resetAdjustments();
+    setFile(null);
+    resetAdjustments();
     if (hdrInputRef.current) {
       hdrInputRef.current.value = "";
     }
@@ -138,11 +141,16 @@ resetAdjustments();
   };
 
   const handleHdrMerge = async () => {
-    if (hdrFiles.length < MIN_HDR_FILES || isMergingHdr) return;
+    if (isMergingHdr) return;
+
+    if (hdrFiles.length < MIN_HDR_FILES) {
+      showError(`Select at least ${MIN_HDR_FILES} images to merge HDR.`);
+      return;
+    }
 
     try {
       setIsMergingHdr(true);
-const mergedFile = await handleHDRMerge(hdrFiles);
+      const mergedFile = await handleHDRMerge(hdrFiles);
       panOffsetRef.current = { x: 0, y: 0 };
       setIsDragging(false);
       setZoom(100);
@@ -153,7 +161,7 @@ const mergedFile = await handleHDRMerge(hdrFiles);
       setHdrFiles([]);
       setIsHdrMode(false);
     } catch (error) {
-      console.error("HDR merge failed:", error);
+      showError(error?.message ?? "HDR merge failed. Please try again.");
     } finally {
       setIsMergingHdr(false);
     }

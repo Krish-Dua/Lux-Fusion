@@ -41,7 +41,9 @@ async function processFilesToMatVector(files) {
 
 export const handleHDRMerge = async (files) => {
 
-  if (files.length < 2) return alert("Select at least 2 images!");
+  if (files.length < 2) {
+    throw new Error("Select at least 2 images.");
+  }
 
   try {  
     const srcImages = await processFilesToMatVector(files);
@@ -82,6 +84,8 @@ export const handleHDRMerge = async (files) => {
 
     return mergedFile;
   } catch (err) {
-      console.error("Error during HDR merge:", err);
+    throw new Error("HDR merge failed. Please try again with valid images.", {
+      cause: err,
+    });
   }
 };
